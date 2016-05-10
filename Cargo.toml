@@ -1,0 +1,10 @@
+[package]
+name = "incre-compile"
+version = "0.1.0"
+authors = ["Ivan Yang <jsyangwenjie@gamil.com>"]
+
+[dependencies]
+cargo = "0.10"
+walkdir = "0.1"
+git2 = "0.4"
+libc = "0.2"
