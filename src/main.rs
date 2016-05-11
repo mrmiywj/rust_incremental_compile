@@ -11,12 +11,11 @@ use std::os::unix::prelude::*;
 use std::path::Path;
 use std::env::args;
 
-use cargo::core::{Source, SourceId, Registry, Dependency, PackageId};
+use cargo::core::{Source, SourceId, PackageId};
 use cargo::ops;
 use cargo::sources::RegistrySource;
 use cargo::core::shell::{Shell, MultiShell, Verbosity, ShellConfig, ColorConfig};
 use cargo::util::Config;
-use walkdir::{WalkDir, DirEntry, WalkDirIterator};
 
 fn main() {
     if fs::metadata("index").is_err() {
@@ -40,9 +39,19 @@ fn main() {
     let c = arg.next().unwrap();
     println!("crate: {}", c);
     let latest_version = arg.next().unwrap();
-    println!("latestL {}", latest_version);
-    for v in arg {
+    println!("latestVersion: {}", latest_version);
+    /*for v in arg {
+        println!("Incremental compile {} with version {}", c.as_str(), v.as_str());
         build(&root.join("incremental"), &mut s, &id, c.as_str(), v.as_str());
+    }*/
+    //arg.map(|v| build(&root.join("incremental"), &mut s, &id, c.as_str(), v.as_str()));
+    loop {
+        match arg.next() {
+            Some(v) => {
+                build(&root.join("incremental"), &mut s, &id, c.as_str(), v.as_str());
+            }
+            None => break,
+        }
     }
     build(&root.join("noincremental"), &mut s, &id, c.as_str(), latest_version.as_str());
 }
@@ -61,13 +70,23 @@ fn config() -> Config {
 }
 
 fn build(out: &Path, src: &mut RegistrySource, id: &SourceId, krate: &str, ver: &str) {
-    println!("working on: {}", krate);
-    fs::create_dir_all(&out).unwrap();
-    unsafe {
-        let stdout = File::create(out.join("stdio")).unwrap();
-        assert_eq!(libc::dup2(stdout.as_raw_fd(), 1), 1);
-        assert_eq!(libc::dup2(stdout.as_raw_fd(), 2), 2);
+    match fs::create_dir_all(&out) {
+        Ok(_) => {}
+        Err(e) => return println!("Directory exist!, {}", e)
     }
+    unsafe {
+        let try_open = File::open(out.join("stdio"));
+        let stdout = match try_open {
+            Err(_) => {
+                let stdout = File::create(out.join("stdio")).unwrap();
+                assert_eq!(libc::dup2(stdout.as_raw_fd(), 1), 1);
+                assert_eq!(libc::dup2(stdout.as_raw_fd(), 2), 2);
+                stdout
+            }
+            Ok(_) => try_open.unwrap(),
+        };
+    }
+    println!("working on: {} with version {}", krate, ver);
     let pkg = PackageId::new(krate, ver, id).unwrap();
     let pkg = match src.download(&pkg) {
         Ok(v) => v,
